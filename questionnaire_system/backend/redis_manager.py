@@ -8,11 +8,12 @@ from datetime import datetime
 import os
 
 class RedisManager:
-    def __init__(self, host='localhost', port=6379, db=0, decode_responses=True):
+    def __init__(self, host=None, port=None, db=0, decode_responses=True):
         """初始化Redis连接"""
+        # Use environment variables if provided, otherwise use defaults
         self.redis_client = redis.Redis(
-            host=host,
-            port=port,
+            host=host or os.environ.get('REDIS_HOST', 'localhost'),
+            port=port or int(os.environ.get('REDIS_PORT', 6379)),
             db=db,
             decode_responses=decode_responses
         )
@@ -218,4 +219,4 @@ class RedisManager:
                 "answers": self.get_question_answers(question_id)
             }
         
-        return data 
+        return data

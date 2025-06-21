@@ -1,0 +1,20 @@
+version: '3'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8501:8501"
+    environment:
+      - REDIS_HOST=redis_service
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${PANEL_REDIS_ROOT_PASSWORD}
+    restart: always
+    networks:
+      - 1panel-network
+
+networks:
+  1panel-network:
+    external: true
