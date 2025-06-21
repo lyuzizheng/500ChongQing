@@ -10,7 +10,7 @@ services:
     environment:
       - REDIS_HOST=redis_service
       - REDIS_PORT=6379
-      - REDIS_PASSWORD=${PANEL_REDIS_ROOT_PASSWORD}
+      - REDIS_PASSWORD=1234567
     restart: always
     networks:
       - 1panel-network
