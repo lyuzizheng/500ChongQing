@@ -43,7 +43,7 @@ jobs:
         if: (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main') && github.event.inputs.version == ''
         run: |
           git fetch --tags
-          latest_tag=$(git describe --tags `git rev-list --tags --max-count=1` 2>/dev/null || true)
+          latest_tag=$(git tag -l | sort -V | tail -n 1)
 
           if [ -z "$latest_tag" ]
           then
@@ -88,8 +88,8 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
-          context: ./questionnaire_system
-          file: ./questionnaire_system/Dockerfile
+          context: .
+          file: ./Dockerfile
 
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
@@ -125,7 +125,7 @@ jobs:
           echo "**使用 Docker Compose:**" >> $GITHUB_STEP_SUMMARY
           echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
           echo "# 下载 docker-compose.yml 文件" >> $GITHUB_STEP_SUMMARY
-          echo "curl -O https://raw.githubusercontent.com/${{ github.repository }}/master/questionnaire_system/docker-compose.yml" >> $GITHUB_STEP_SUMMARY
+          echo "curl -O https://raw.githubusercontent.com/${{ github.repository }}/master/docker-compose.yml" >> $GITHUB_STEP_SUMMARY
           echo "# 修改镜像地址为:" >> $GITHUB_STEP_SUMMARY
           echo "# image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> $GITHUB_STEP_SUMMARY
           echo "docker-compose up -d" >> $GITHUB_STEP_SUMMARY
