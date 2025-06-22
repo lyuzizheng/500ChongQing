@@ -16,6 +16,10 @@ on:
         required: true
         default: "master"
         type: string
+      version:
+        description: "Image version (e.g., v1.0.1)"
+        required: false
+        type: string
 
 env:
   REGISTRY: ghcr.io
@@ -33,6 +37,22 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.inputs.branch || github.ref }}
+          fetch-depth: 0
+
+      - name: Auto-increment version
+        if: (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main') && github.event.inputs.version == ''
+        run: |
+          git fetch --tags
+          latest_tag=$(git describe --tags `git rev-list --tags --max-count=1` 2>/dev/null)
+
+          if [ -z "$latest_tag" ]
+          then
+            new_tag="v1.0.0"
+          else
+            new_tag=$(echo "$latest_tag" | awk -F. -v OFS=. '{$NF++;print}')
+          fi
+
+          echo "AUTO_VERSION=$new_tag" >> $GITHUB_ENV
 
       - name: Set lower case image name
         run: echo "IMAGE_NAME=$(echo ${{ github.repository_owner }}/chongqing-identity-map | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
@@ -54,6 +74,8 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
+            type=raw,value=${{ env.AUTO_VERSION }},enable=${{ env.AUTO_VERSION != '' }}
+            type=raw,value=${{ github.event.inputs.version }},enable=${{ github.event.inputs.version != '' }}
             type=ref,event=branch
             type=ref,event=pr
             type=sha,prefix={{branch}}-
