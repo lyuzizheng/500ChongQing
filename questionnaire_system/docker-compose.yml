@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   app:
-    image: ghcr.io/username/chongqingidentitymap-:latest
+    image: ghcr.io/odysseusailoon/chongqing-identity-map:latest
     ports:
       - "8501:8501"
     environment:
