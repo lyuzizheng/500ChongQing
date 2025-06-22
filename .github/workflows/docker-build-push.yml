@@ -43,7 +43,7 @@ jobs:
         if: (github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main') && github.event.inputs.version == ''
         run: |
           git fetch --tags
-          latest_tag=$(git describe --tags `git rev-list --tags --max-count=1` 2>/dev/null)
+          latest_tag=$(git describe --tags `git rev-list --tags --max-count=1` 2>/dev/null || true)
 
           if [ -z "$latest_tag" ]
           then
