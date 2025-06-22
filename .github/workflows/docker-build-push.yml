@@ -1,0 +1,125 @@
+name: Build and Push Docker Image
+
+on:
+  push:
+    branches:
+      - master
+      - main
+  pull_request:
+    branches:
+      - master
+      - main
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+          labels: |
+            org.opencontainers.image.title=ChongQing Identity Map
+            org.opencontainers.image.description=重庆身份坐标问卷系统
+            org.opencontainers.image.vendor=${{ github.repository_owner }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./questionnaire_system
+          file: ./questionnaire_system/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILDTIME=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
+            VERSION=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.version'] }}
+
+      - name: Generate deployment info
+        if: github.ref == 'refs/heads/master' || github.ref == 'refs/heads/main'
+        run: |
+          echo "## 🚀 部署信息" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**镜像地址:** \`${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**拉取镜像:**" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**运行容器:**" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "docker run -d -p 8501:8501 \\" >> $GITHUB_STEP_SUMMARY
+          echo "  -e REDIS_HOST=your_redis_host \\" >> $GITHUB_STEP_SUMMARY
+          echo "  -e REDIS_PORT=6379 \\" >> $GITHUB_STEP_SUMMARY
+          echo "  -e REDIS_PASSWORD=your_redis_password \\" >> $GITHUB_STEP_SUMMARY
+          echo "  --name chongqing-identity-map \\" >> $GITHUB_STEP_SUMMARY
+          echo "  ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**使用 Docker Compose:**" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+          echo "# 下载 docker-compose.yml 文件" >> $GITHUB_STEP_SUMMARY
+          echo "curl -O https://raw.githubusercontent.com/${{ github.repository }}/master/questionnaire_system/docker-compose.yml" >> $GITHUB_STEP_SUMMARY
+          echo "# 修改镜像地址为:" >> $GITHUB_STEP_SUMMARY
+          echo "# image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest" >> $GITHUB_STEP_SUMMARY
+          echo "docker-compose up -d" >> $GITHUB_STEP_SUMMARY
+          echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**访问地址:** http://localhost:8501" >> $GITHUB_STEP_SUMMARY
+
+      - name: Test image
+        if: github.event_name != 'pull_request'
+        run: |
+          echo "Testing the built image..."
+          docker run --rm -d --name test-container -p 8502:8501 \
+            -e REDIS_HOST=localhost \
+            -e REDIS_PORT=6379 \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+
+          # Wait for container to start
+          sleep 10
+
+          # Check if container is running
+          if docker ps | grep test-container; then
+            echo "✅ Container started successfully"
+            docker logs test-container
+          else
+            echo "❌ Container failed to start"
+            docker logs test-container
+            exit 1
+          fi
+
+          # Cleanup
+          docker stop test-container || true

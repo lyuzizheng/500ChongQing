@@ -1,20 +1,36 @@
-version: '3'
+version: '3.8'
 
 services:
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/username/chongqingidentitymap-:latest
     ports:
       - "8501:8501"
     environment:
       - REDIS_HOST=redis_service
       - REDIS_PORT=6379
-      - REDIS_PASSWORD=1234567
+      - REDIS_PASSWORD=secure_password_123
     restart: always
-    networks:
-      - 1panel-network
+    depends_on:
+      - redis
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
-networks:
-  1panel-network:
-    external: true
+  redis:
+    image: redis:7-alpine
+    command: redis-server --requirepass secure_password_123
+    restart: always
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 30s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  redis_data:
+    driver: local
