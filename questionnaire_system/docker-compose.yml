@@ -6,31 +6,15 @@ services:
     ports:
       - "8501:8501"
     environment:
-      - REDIS_HOST=redis_service
-      - REDIS_PORT=6379
-      - REDIS_PASSWORD=secure_password_123
+      # Redis配置 - 使用外部Redis提供商
+      - REDIS_HOST=${REDIS_HOST:-your-redis-host.com}
+      - REDIS_PORT=${REDIS_PORT:-6379}
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-your-redis-password}
+      - REDIS_DB=${REDIS_DB:-0}
     restart: always
-    depends_on:
-      - redis
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
-
-  redis:
-    image: redis:7-alpine
-    command: redis-server --requirepass secure_password_123
-    restart: always
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
-      interval: 30s
-      timeout: 3s
-      retries: 5
-
-volumes:
-  redis_data:
-    driver: local

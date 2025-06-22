@@ -20,18 +20,32 @@
 
 ## 快速开始
 
-### 1. 安装Redis
+### 1. 配置Redis连接
+
+本项目使用外部Redis提供商，需要配置Redis连接信息：
 
 ```bash
-# macOS
-brew install redis
+# 复制环境变量配置文件
+cp .env.example .env
 
-# Ubuntu/Debian
-sudo apt-get install redis-server
-
-# 启动Redis
-redis-server
+# 编辑 .env 文件，填入你的Redis连接信息
+vim .env
 ```
+
+在 `.env` 文件中配置：
+```bash
+REDIS_HOST=your-redis-host.com
+REDIS_PORT=6379
+REDIS_PASSWORD=your-redis-password
+REDIS_DB=0
+```
+
+**支持的Redis提供商：**
+- 阿里云Redis
+- 腾讯云Redis
+- AWS ElastiCache
+- Azure Cache for Redis
+- 其他兼容Redis协议的服务
 
 ### 2. 安装Python依赖
 
@@ -48,6 +62,9 @@ pip install -r requirements.txt
 
 # 方式2：手动启动
 streamlit run app.py
+
+# 方式3：使用Docker Compose
+docker-compose up -d
 ```
 
 应用将在 http://localhost:8501 启动
@@ -79,6 +96,58 @@ questionnaire_system/
 2. 在答题页面回答所有问题
 3. 提交后自动计算得分
 4. 可查看个人成绩、排行榜和问题统计
+
+## Redis配置详解
+
+### 环境变量配置
+
+系统通过以下环境变量配置Redis连接：
+
+| 变量名 | 说明 | 默认值 | 示例 |
+|--------|------|--------|------|
+| `REDIS_HOST` | Redis主机地址 | `localhost` | `r-xxx.redis.rds.aliyuncs.com` |
+| `REDIS_PORT` | Redis端口 | `6379` | `6379` |
+| `REDIS_PASSWORD` | Redis密码 | 无 | `your-password` |
+| `REDIS_DB` | Redis数据库编号 | `0` | `0` |
+
+### 常见Redis提供商配置示例
+
+**阿里云Redis：**
+```bash
+REDIS_HOST=r-xxxxxxxxx.redis.rds.aliyuncs.com
+REDIS_PORT=6379
+REDIS_PASSWORD=your-password
+REDIS_DB=0
+```
+
+**腾讯云Redis：**
+```bash
+REDIS_HOST=crs-xxxxxxxxx.tencentcloudapi.com
+REDIS_PORT=6379
+REDIS_PASSWORD=your-password
+REDIS_DB=0
+```
+
+**AWS ElastiCache：**
+```bash
+REDIS_HOST=your-cluster.xxxxx.cache.amazonaws.com
+REDIS_PORT=6379
+REDIS_PASSWORD=your-password
+REDIS_DB=0
+```
+
+### Docker部署配置
+
+使用Docker Compose部署时，可以通过环境变量或`.env`文件配置：
+
+```bash
+# 创建.env文件
+echo "REDIS_HOST=your-redis-host.com" > .env
+echo "REDIS_PASSWORD=your-password" >> .env
+
+# 启动服务
+docker-compose up -d
+```
 
 ## 数据存储
 
@@ -113,4 +182,4 @@ questionnaire_system/
 
 ---
 
-如有建议或合作意向，欢迎联系项目维护者。 
+如有建议或合作意向，欢迎联系项目维护者。
