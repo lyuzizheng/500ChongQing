@@ -19,23 +19,15 @@ RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Create non-root user for security
-RUN groupadd -r appuser && useradd -r -g appuser appuser && \
-    mkdir -p /app/.cache && \
-    chown -R appuser:appuser /app
-
 # Copy requirements file
-COPY --chown=appuser:appuser requirements.txt .
+COPY requirements.txt .
 
-# Switch to non-root user
-USER appuser
-
-# Install dependencies as non-root user
+# Install dependencies
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir --user -r requirements.txt
+    pip install --no-cache-dir -r requirements.txt
 
 # Copy application code
-COPY --chown=appuser:appuser . .
+COPY . .
 
 # Expose Streamlit port
 EXPOSE 8501
@@ -46,7 +38,6 @@ ENV REDIS_HOST=redis_service \
     REDIS_PORT=6379 \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
-    PATH=/app/.local/bin:$PATH \
     PYTHONPATH=/app
 
 # Health check
