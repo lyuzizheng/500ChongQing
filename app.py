@@ -75,16 +75,14 @@ else:
         user_answers = redis_manager.get_user_answers(st.session_state.user_id)
         
         # 定义章节问题
-        chapter1_keys = ["q1", "q2", "p", "a1", "a2", "b1", "b2", "b3", "b4", "b5", "c1", "c2", "c3", "e"]
-        chapter3_keys = ["r"]
-        chapter2_keys = [k for k in QUESTIONS.keys() if k not in chapter1_keys and k not in chapter3_keys]
+        chapter1_keys = ["q1", "q2", "p", "a1", "a2", "b1", "b2", "b3", "b4", "b5", "d", "c1", "c2", "c3", "e"]
+        chapter2_keys = [k for k in QUESTIONS.keys() if k not in chapter1_keys]
 
         chapter1_questions = {k: QUESTIONS[k] for k in chapter1_keys if k in QUESTIONS}
         chapter2_questions = {k: QUESTIONS[k] for k in chapter2_keys if k in QUESTIONS}
-        chapter3_questions = {k: QUESTIONS[k] for k in chapter3_keys if k in QUESTIONS}
 
         # 创建选项卡
-        tab1, tab2, tab3 = st.tabs(["Chapter 1", "Chapter 2", "Chapter 3"])
+        tab1, tab2 = st.tabs(["Chapter 1", "Chapter 2"])
 
         with st.form("questionnaire_form"):
             answers = {}
@@ -256,21 +254,6 @@ else:
                     
                     st.divider()
 
-            with tab3:
-                st.header("Chapter 3")
-                for question_id, question in chapter3_questions.items():
-                    st.subheader(f"{question_id}. {question['label']}")
-                    existing_answer = user_answers.get(question_id, {}).get("answer")
-                    
-                    if question['type'] == QuestionType.SINGLE_CHOICE.value:
-                        answer = st.radio(
-                            "请选择",
-                            question['options'],
-                            key=f"q_{question_id}",
-                            index=question['options'].index(existing_answer) if existing_answer in question['options'] else 0
-                        )
-                        answers[question_id] = answer
-
             # 提交按钮
             submitted = st.form_submit_button("提交所有答案", type="primary")
 
@@ -314,6 +297,7 @@ else:
         st.title("我的坐标")
 
         final_x, final_y = scoring_engine.get_final_axes_scores(st.session_state.user_id)
+        avg_x, avg_y = scoring_engine.get_average_axes_scores()
         
         st.markdown("---")
         
@@ -336,10 +320,21 @@ else:
             x=[final_x],
             y=[final_y],
             mode='markers+text',
-            marker=dict(color='red', size=15),
+            marker=dict(color='red', size=15, symbol='star'),
             text=[st.session_state.user_id],
             textposition="top center",
             name="我的位置"
+        ))
+
+        # 添加平均分点
+        fig.add_trace(go.Scatter(
+            x=[avg_x],
+            y=[avg_y],
+            mode='markers+text',
+            marker=dict(color='blue', size=12, symbol='circle'),
+            text=["大众平均分"],
+            textposition="bottom center",
+            name="大众平均分"
         ))
 
         # 设置坐标轴
@@ -378,84 +373,57 @@ else:
     elif page == "问题统计":
         st.title("问题统计")
         
-        # 选择问题
-        question_id = st.selectbox(
-            "选择要查看的问题",
+        selected_question_id = st.selectbox(
+            "请选择要查看的题目",
             options=list(QUESTIONS.keys()),
-            format_func=lambda x: f"{x}. {QUESTIONS[x]['label']}"
+            format_func=lambda q_id: f"{q_id}: {QUESTIONS[q_id]['label']}"
         )
         
-        if question_id:
-            question = QUESTIONS[question_id]
-            st.subheader(f"{question_id}. {question['label']}")
+        if selected_question_id:
+            st.markdown("---")
             
-            # 获取统计信息
-            stats = redis_manager.get_question_stats(question_id)
-            all_answers = redis_manager.get_question_answers(question_id)
+            question_config = QUESTIONS[selected_question_id]
+            stats = redis_manager.get_question_stats(selected_question_id)
+            total_respondents = redis_manager.get_question_respondent_count(selected_question_id)
             
-            col1, col2 = st.columns(2)
-            
-            with col1:
-                st.metric("回答人数", len(all_answers))
-            
-            # 根据题目类型显示不同的统计
-            if question['type'] == QuestionType.SINGLE_CHOICE.value:
-                # 显示选项分布
-                st.subheader("选项分布")
-                
-                option_counts = {}
-                for key, value in stats.items():
-                    if key.startswith("option:"):
-                        option = key.replace("option:", "")
-                        option_counts[option] = int(value)
-                
-                if option_counts:
-                    df = pd.DataFrame(
-                        list(option_counts.items()),
-                        columns=['选项', '人数']
-                    )
-                    st.bar_chart(df.set_index('选项'))
-            
-            elif question['type'] == QuestionType.NUMBER.value:
-                # 显示数值分布
-                values = [float(a["answer"]) for a in all_answers 
-                         if isinstance(a["answer"], (int, float))]
-                
-                if values:
-                    st.subheader("数值统计")
-                    col1, col2, col3, col4 = st.columns(4)
+            st.subheader(f"“{question_config['label']}”答案分布")
+
+            if total_respondents == 0:
+                st.info("该题目暂无回答记录")
+            else:
+                if question_config['type'] in [QuestionType.SINGLE_CHOICE.value, QuestionType.COMBINATION.value]:
                     
-                    with col1:
-                        st.metric("平均值", f"{np.mean(values):.2f}")
-                    with col2:
-                        st.metric("中位数", f"{np.median(values):.2f}")
-                    with col3:
-                        st.metric("最小值", f"{min(values):.2f}")
-                    with col4:
-                        st.metric("最大值", f"{max(values):.2f}")
+                    vote_counts = {}
+                    if question_config['type'] == QuestionType.SINGLE_CHOICE.value:
+                        for option in question_config['options']:
+                            count = int(stats.get(f"option:{option}", 0))
+                            vote_counts[option] = count
+                    else: # Combination
+                        for key, value in stats.items():
+                            if key.startswith("combo:"):
+                                combo = key.replace("combo:", "")
+                                vote_counts[combo] = int(value)
                     
-                    # 显示直方图
-                    st.subheader("数值分布")
-                    df = pd.DataFrame(values, columns=['值'])
-                    st.bar_chart(df['值'].value_counts().sort_index())
-            
-            elif question['type'] == QuestionType.COMBINATION.value:
-                # 显示组合统计
-                st.subheader("组合分布")
-                
-                combo_counts = {}
-                for key, value in stats.items():
-                    if key.startswith("combo:"):
-                        combo = key.replace("combo:", "")
-                        combo_counts[combo] = int(value)
-                
-                if combo_counts:
-                    # 显示前10个最热门组合
-                    sorted_combos = sorted(combo_counts.items(), 
-                                         key=lambda x: x[1], reverse=True)[:10]
-                    
-                    df = pd.DataFrame(sorted_combos, columns=['组合', '人数'])
-                    st.dataframe(df, use_container_width=True)
+                    if not vote_counts:
+                        st.info("该题目暂无回答记录")
+                    else:
+                        # 计算百分比
+                        percentages = {option: (count / total_respondents) * 100 for option, count in vote_counts.items()}
+                        
+                        df = pd.DataFrame({
+                            "选项": vote_counts.keys(),
+                            "票数": vote_counts.values(),
+                            "百分比(%)": [round(p, 2) for p in percentages.values()]
+                        })
+                        
+                        st.dataframe(df, use_container_width=True)
+                        
+                        # 绘制图表
+                        chart_df = pd.DataFrame(percentages.values(), index=percentages.keys(), columns=['百分比'])
+                        st.bar_chart(chart_df)
+
+                else:
+                    st.info("该题型暂不支持分布统计。")
     
     elif page == "管理工具":
         st.title("管理工具")
